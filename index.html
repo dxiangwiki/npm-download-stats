@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPM Package Historical Total Download Query</title>
+    <meta name="description" content="Query the total historical download count of any npm package, or batch query all packages of an npm author">
+    <style>
+        :root {
+            /* Dark mode default */
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --border: #30363d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #8b949e;
+            --accent-green: #238636;
+            --accent-blue: #58a6ff;
+            --danger-red: #f85149;
+            --warning-yellow: #d29922;
+        }
+        [data-theme="light"]{
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --border: #d1d9e0;
+            --text-primary: #1f2328;
+            --text-secondary: #656d76;
+            --accent-green: #1a7f37;
+            --accent-blue: #0969da;
+            --danger-red: #d1242f;
+            --warning-yellow: #9a6700;
+        }
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 48px 20px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            gap:16px;
+        }
+        .header-text h1 {
+            font-size: 36px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 18px;
+        }
+        .header-btn-group{
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+        }
+        .lang-btn, .theme-btn{
+            padding:6px 12px;
+            border:1px solid var(--border);
+            background:var(--bg-secondary);
+            color:var(--text-primary);
+            border-radius:6px;
+            cursor:pointer;
+            transition: 0.2s;
+        }
+        .lang-btn.active{
+            background-color:var(--accent-green);
+            border-color:var(--accent-green);
+            color:#fff;
+        }
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            margin-bottom: 24px;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        .mode-switch{
+            display:flex;
+            gap:12px;
+            margin-bottom:16px;
+        }
+        .mode-btn{
+            padding:8px 14px;
+            border:1px solid var(--border);
+            background:var(--bg-primary);
+            color:var(--text-primary);
+            border-radius:6px;
+            cursor:pointer;
+        }
+        .mode-btn.active{
+            background-color:var(--accent-green);
+            border-color:var(--accent-green);
+            color:#fff;
+        }
+        .input-row {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+        #inputText {
+            flex: 1;
+            min-width: 260px;
+            padding: 14px 16px;
+            font-size: 16px;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+        }
+        #queryBtn {
+            padding: 0 24px;
+            height: 48px;
+            font-size: 16px;
+            font-weight: 500;
+            background-color: var(--accent-green);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        #queryBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .result-card {
+            min-height: 120px;
+        }
+        .error {
+            color: var(--danger-red);
+            font-size: 20px;
+            font-weight: 600;
+        }
+        .warn{
+            color:var(--warning-yellow);
+        }
+        .hint {
+            color: var(--text-secondary);
+            margin-top: 8px;
+            font-size: 14px;
+        }
+        .total-value {
+            font-size: 28px;
+            color: var(--accent-blue);
+            font-weight: bold;
+            margin:12px 0;
+        }
+        .section-title {
+            font-size:18px;
+            margin: 20px 0 10px;
+            font-weight: 600;
+        }
+        .chunk-item {
+            color: var(--text-secondary);
+            padding: 4px 0;
+        }
+        .author-pkg-item{
+            border:1px solid var(--border);
+            border-radius:8px;
+            padding:12px;
+            margin:10px 0;
+            background:var(--bg-primary);
+        }
+        .chart-wrap {
+            margin-top:20px;
+            width:100%;
+            overflow-x:auto;
+        }
+        svg {
+            min-width: 700px;
+        }
+        .note-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-bottom:8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-text">
+                <h1 data-i18n="title">NPM Package Historical Total Download Query</h1>
+                <p class="subtitle" data-i18n="subtitle">Query cumulative historical downloads of npm packages, fetch data from official npm API, pure frontend, no backend required.</p>
+            </div>
+            <div class="header-btn-group">
+                <button class="lang-btn active" data-lang="en">EN</button>
+                <button class="lang-btn" data-lang="zh">中文</button>
+                <button class="theme-btn" id="themeToggle"></button>
+            </div>
+        </header>
+
+        <div class="card">
+            <div class="mode-switch">
+                <button class="mode-btn active" data-mode="package" data-i18n="modePackage">Single Package Query</button>
+                <button class="mode-btn" data-mode="author" data-i18n="modeAuthor">Batch by Author</button>
+            </div>
+            <div class="input-row">
+                <input id="inputText" data-i18n-placeholder="inputPkgPlaceholder" placeholder="Input npm package name, e.g. vue, react, xiangjsoncraft">
+                <button id="queryBtn" data-i18n="btnQuery">Query</button>
+            </div>
+        </div>
+
+        <div class="card result-card" id="resultBox" data-i18n="readyText">Ready. Enter package name and click Query.</div>
+
+        <div class="card note-card">
+            <h3 data-i18n="noteTitle">Notes & Limitations</h3>
+            <p data-i18n="note1">• Data source: official npm api.npmjs.org & registry.npmjs.org</p>
+            <p data-i18n="note2">• Statistics start from the first publish date of the package, but npm download metrics are only available from ~2015.</p>
+            <p data-i18n="note3">• Download count ≠ unique users. CI/automated repeated installs will be counted multiple times.</p>
+            <p data-i18n="note4">• Network: mainland China users may experience timeout when accessing npm official API.</p>
+            <p data-i18n="note5">• Author batch query: npm registry API returns public packages only, rate limit may cause partial failures.</p>
+        </div>
+    </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const resultBox = $('#resultBox');
+const queryBtn = $('#queryBtn');
+const inputText = $('#inputText');
+const themeToggle = $('#themeToggle');
+
+// 语言词典
+const i18nDict = {
+    en:{
+        title: "NPM Package Historical Total Download Query",
+        subtitle: "Query cumulative historical downloads of npm packages, fetch data from official npm API, pure frontend, no backend required.",
+        modePackage:"Single Package Query",
+        modeAuthor:"Batch by Author",
+        inputPkgPlaceholder:"Input npm package name, e.g. vue, react, xiangjsoncraft",
+        inputAuthorPlaceholder:"Input npm author username, e.g. sindresorhus",
+        btnQuery:"Query",
+        readyText:"Ready. Enter package name and click Query.",
+        noteTitle:"Notes & Limitations",
+        note1:"• Data source: official npm api.npmjs.org & registry.npmjs.org",
+        note2:"• Statistics start from the first publish date of the package, but npm download metrics are only available from ~2015.",
+        note3:"• Download count ≠ unique users. CI/automated repeated installs will be counted multiple times.",
+        note4:"• Network: mainland China users may experience timeout when accessing npm official API.",
+        note5:"• Author batch query: npm registry API returns public packages only, rate limit may cause partial failures.",
+        fetchMeta:"Fetching package metadata...",
+        fetchAuthorPkg:"Fetching packages of author: {name}",
+        fetchChunk:"Fetching chunk {index}/{count}: {s} ~ {e}",
+        package:"Package",
+        author:"Author",
+        firstPub:"First published",
+        totalDownload:"Total downloads",
+        segStat:"Segmented statistics",
+        dailyChart:"Daily Download Trend Chart",
+        authorTotal:"Total downloads of all packages",
+        errPackage:"Package not found or request failed",
+        errAuthorNoPkg:"No public packages found for this author",
+        errQueryFail:"Query failed",
+        errTip:"Possible reasons: package not found, typo, network failure accessing npm API.",
+        emptyInput:"Please input npm package name or author name",
+        batchProgress:"Batch progress: {done}/{total}",
+        pkgFail:"Failed to get data for this package",
+        themeSwitchLight:"☀ Light",
+        themeSwitchDark:"🌙 Dark"
+    },
+    zh:{
+        title: "NPM包历史总下载量查询",
+        subtitle: "查询NPM包累计历史下载量，调用npm官方接口，纯前端实现，无需后端服务。",
+        modePackage:"单包查询",
+        modeAuthor:"按作者批量查询",
+        inputPkgPlaceholder:"输入NPM包名，例如 vue、react、xiangjsoncraft",
+        inputAuthorPlaceholder:"输入NPM作者用户名，例如 sindresorhus",
+        btnQuery:"查询",
+        readyText:"就绪。输入包名后点击查询。",
+        noteTitle:"说明与限制",
+        note1:"• 数据源：npm官方 api.npmjs.org 和 registry.npmjs.org",
+        note2:"• 统计从包首次发布日期开始，但npm下载统计最早仅能追溯至2015年。",
+        note3:"• 下载次数 ≠ 独立用户数，CI流水线、自动化重复安装会被多次统计。",
+        note4:"• 网络：中国大陆用户访问npm官方接口可能出现超时。",
+        note5:"• 作者批量查询：仅获取公开包，npm接口存在频率限制，部分包可能查询失败。",
+        fetchMeta:"正在获取包元数据...",
+        fetchAuthorPkg:"正在获取作者 {name} 的所有包列表",
+        fetchChunk:"正在拉取分段 {index}/{count}: {s} ~ {e}",
+        package:"包名",
+        author:"作者",
+        firstPub:"首次发布",
+        totalDownload:"累计下载量",
+        segStat:"分段统计",
+        dailyChart:"每日下载趋势图",
+        authorTotal:"作者全部包总下载量",
+        errPackage:"包不存在或请求失败",
+        errAuthorNoPkg:"该作者未找到公开包",
+        errQueryFail:"查询失败",
+        errTip:"可能原因：包不存在、包名拼写错误、无法访问npm官方接口。",
+        emptyInput:"请输入npm包名称或作者名称",
+        batchProgress:"批量进度：{done}/{total}",
+        pkgFail:"该包数据获取失败",
+        themeSwitchLight:"☀ 浅色模式",
+        themeSwitchDark:"🌙 深色模式"
+    }
+}
+
+let currentLang = localStorage.getItem('lang') || 'en';
+let queryMode = "package"; // package / author
+let currentTheme = localStorage.getItem('theme') || 'dark';
+
+// 更新主题按钮文字
+function updateThemeBtnText(){
+    const dict = i18nDict[currentLang];
+    if(currentTheme === "dark"){
+        themeToggle.innerText = dict.themeSwitchLight;
+    }else{
+        themeToggle.innerText = dict.themeSwitchDark;
+    }
+}
+
+// 应用主题
+function applyTheme(theme){
+    currentTheme = theme;
+    localStorage.setItem('theme', theme);
+    if(theme === "light"){
+        document.documentElement.setAttribute("data-theme","light");
+    }else{
+        document.documentElement.removeAttribute("data-theme");
+    }
+    updateThemeBtnText();
+}
+
+themeToggle.onclick = ()=>{
+    const next = currentTheme === "dark" ? "light" : "dark";
+    applyTheme(next);
+}
+
+// 页面文字渲染
+function applyLang(lang){
+    currentLang = lang;
+    localStorage.setItem('lang',lang);
+    const dict = i18nDict[lang];
+    $$('[data-i18n]').forEach(el=>{
+        const key = el.getAttribute('data-i18n');
+        el.innerText = dict[key];
+    })
+    $$('[data-i18n-placeholder]').forEach(el=>{
+        const key = el.getAttribute('data-i18n-placeholder');
+        el.placeholder = dict[key];
+    })
+    $$('.lang-btn').forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.lang === lang)
+    })
+    // 更新输入框提示，根据当前模式
+    if(queryMode === "package"){
+        inputText.placeholder = dict.inputPkgPlaceholder;
+    }else{
+        inputText.placeholder = dict.inputAuthorPlaceholder;
+    }
+    updateThemeBtnText();
+}
+$$('.lang-btn').forEach(btn=>{
+    btn.onclick = ()=> applyLang(btn.dataset.lang);
+})
+// 切换查询模式
+$$('.mode-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+        queryMode = btn.dataset.mode;
+        $$('.mode-btn').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        applyLang(currentLang);
+    }
+})
+applyTheme(currentTheme);
+applyLang(currentLang);
+
+/**
+ * Get package first publish date from npm registry
+ */
+async function getPackageFirstPublish(pkg) {
+    const res = await fetch(`https://registry.npmjs.org/${pkg}`);
+    if (!res.ok) throw new Error(i18nDict[currentLang].errPackage);
+    const data = await res.json();
+    const timeObj = data.time;
+    const timeList = Object.values(timeObj).map(str => new Date(str).getTime());
+    const firstTs = Math.min(...timeList);
+    return new Date(firstTs);
+}
+
+/** Format date to YYYY-MM-DD */
+function fmtDate(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+/** Fetch download data of a date range */
+async function fetchRange(pkg, startDate, endDate) {
+    const url = `https://api.npmjs.org/downloads/range/${fmtDate(startDate)}:${fmtDate(endDate)}/${pkg}`;
+    const resp = await fetch(url);
+    if (!resp.ok) return { downloads: [] };
+    return await resp.json();
+}
+
+// 获取作者名下所有包
+async function getAuthorPackages(authorName){
+    const res = await fetch(`https://registry.npmjs.org/-/v1/search?text=author:${authorName}&size=250`);
+    if(!res.ok) throw new Error("request error");
+    const json = await res.json();
+    return json.objects.map(item=>item.package.name);
+}
+
+/** Render simple SVG chart from daily download list */
+function renderChart(downloadList) {
+    if (!downloadList || downloadList.length === 0) return "";
+    const dict = i18nDict[currentLang];
+    const width = 800;
+    const height = 220;
+    const padding = 30;
+    const maxVal = Math.max(...downloadList.map(d => d.downloads));
+    if(maxVal <=0) return "";
+    const points = downloadList.map((item, idx) => {
+        const x = padding + (idx / (downloadList.length -1 || 1)) * (width - padding*2);
+        const y = height - padding - (item.downloads / maxVal) * (height - padding*2);
+        return `${x},${y}`;
+    }).join(" ");
+    return `
+    <div class="chart-wrap">
+        <h4 class="section-title">${dict.dailyChart}</h4>
+        <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+            <defs>
+                <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stop-color="#58a6ff" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#58a6ff" stop-opacity="0.05"/>
+                </linearGradient>
+            </defs>
+            <!-- Axis -->
+            <line x1="${padding}" y1="${padding}" x2="${padding}" y2="${height-padding}" stroke="var(--border)"/>
+            <line x1="${padding}" y1="${height-padding}" x2="${width-padding}" y2="${height-padding}" stroke="var(--border)"/>
+            <!-- Area -->
+            <path d="M${padding},${height-padding} L${points} L${width-padding},${height-padding} Z" fill="url(#grad1)" />
+            <!-- Line -->
+            <polyline points="${points}" fill="none" stroke="var(--accent-blue)" stroke-width="2"/>
+        </svg>
+    </div>
+    `
+}
+
+// 单个包查询逻辑
+async function querySinglePackage(pkg){
+    const dict = i18nDict[currentLang];
+    const firstDate = await getPackageFirstPublish(pkg);
+    const now = new Date();
+    let total = 0;
+    let currentStart = new Date(firstDate);
+    const chunkMs = 1000 * 60 * 60 * 24 * 365; // per 1 year chunk
+    let chunkIndex = 1;
+    let allChunks = [];
+    let allDailyRecords = [];
+
+    const totalSpanMs = now.getTime() - firstDate.getTime();
+    const chunkCount = Math.ceil(totalSpanMs / chunkMs);
+
+    while (currentStart < now) {
+        const chunkEndTs = currentStart.getTime() + chunkMs;
+        const chunkEnd = new Date(Math.min(chunkEndTs, now.getTime()));
+        resultBox.innerHTML = dict.fetchChunk.replace('{index}',chunkIndex).replace('{count}',chunkCount).replace('{s}',fmtDate(currentStart)).replace('{e}',fmtDate(chunkEnd));
+        const rangeData = await fetchRange(pkg, currentStart, chunkEnd);
+        const list = rangeData.downloads || [];
+        const sumChunk = list.reduce((sum, item) => sum + item.downloads, 0);
+        total += sumChunk;
+        allChunks.push({ start: fmtDate(currentStart), end: fmtDate(chunkEnd), count: sumChunk });
+        allDailyRecords.push(...list);
+        currentStart = new Date(chunkEnd.getTime() + 1000 * 60 * 60 * 24);
+        chunkIndex++;
+    }
+    return {
+        success:true,
+        pkg,
+        firstDate,
+        total,
+        allChunks,
+        allDailyRecords
+    }
+}
+
+async function startQuery() {
+    const dict = i18nDict[currentLang];
+    const inputVal = inputText.value.trim();
+    if (!inputVal) {
+        resultBox.innerHTML = `<div class="error">${dict.emptyInput}</div>`;
+        return;
+    }
+    queryBtn.disabled = true;
+    try {
+        if(queryMode === "package"){
+            // 单包查询
+            const res = await querySinglePackage(inputVal);
+            let html = `
+                <div>
+                    <div><strong>${dict.package}:</strong> ${res.pkg}</div>
+                    <div><strong>${dict.firstPub}:</strong> ${fmtDate(res.firstDate)}</div>
+                    <div class="total-value">${dict.totalDownload}: ${res.total.toLocaleString()}</div>
+                    <div class="section-title">${dict.segStat}:</div>
+            `;
+            res.allChunks.forEach(item => {
+                html += `<div class="chunk-item">• ${item.start} ~ ${item.end}: ${item.count.toLocaleString()}</div>`;
+            })
+            html += "</div>";
+            html += renderChart(res.allDailyRecords);
+            resultBox.innerHTML = html;
+        }else{
+            // 作者批量查询
+            resultBox.innerHTML = dict.fetchAuthorPkg.replace("{name}",inputVal);
+            const pkgList = await getAuthorPackages(inputVal);
+            if(!pkgList || pkgList.length === 0){
+                resultBox.innerHTML = `<div class="error">${dict.errAuthorNoPkg}</div>`;
+                return;
+            }
+            let authorTotalAll = 0;
+            let html = `<div><strong>${dict.author}:</strong> ${inputVal}</div>`;
+            html += `<div class="hint">Packages found: ${pkgList.length}</div>`;
+            for(let i=0;i<pkgList.length;i++){
+                const pkgName = pkgList[i];
+                resultBox.innerHTML = dict.batchProgress.replace("{done}",i).replace("{total}",pkgList.length)+`<br/>` + dict.fetchAuthorPkg.replace("{name}",inputVal);
+                try{
+                    const pkgResult = await querySinglePackage(pkgName);
+                    authorTotalAll += pkgResult.total;
+                    html += `
+                    <div class="author-pkg-item">
+                        <div><strong>${pkgName}</strong></div>
+                        <div>${dict.totalDownload}: ${pkgResult.total.toLocaleString()}</div>
+                        <div>${dict.firstPub}: ${fmtDate(pkgResult.firstDate)}</div>
+                    </div>
+                    `
+                }catch(e){
+                    html += `<div class="author-pkg-item warn">${pkgName}: ${dict.pkgFail}</div>`;
+                }
+            }
+            html += `<div class="total-value">${dict.authorTotal}: ${authorTotalAll.toLocaleString()}</div>`;
+            resultBox.innerHTML = html;
+        }
+    } catch (err) {
+        resultBox.innerHTML = `
+            <div class="error">${dict.errQueryFail}: ${err.message}</div>
+            <div class="hint">${dict.errTip}</div>
+        `;
+    } finally {
+        queryBtn.disabled = false;
+    }
+}
+
+queryBtn.onclick = startQuery;
+inputText.onkeydown = (e) => {
+    if (e.key === 'Enter') startQuery();
+}
+</script>
+</body>
+</html>
